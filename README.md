@@ -109,18 +109,18 @@ See `example_tts_stream.py` for more examples.
 
 ## Example metrics
 Here are the example metrics for streaming latency on a 4090
-Latency to first chunk: 0.472s
-Received chunk 1, shape: torch.Size([1, 24000]), duration: 1.000s
-Audio playback started!
-Received chunk 2, shape: torch.Size([1, 24000]), duration: 1.000s
-Received chunk 3, shape: torch.Size([1, 24000]), duration: 1.000s
-Received chunk 4, shape: torch.Size([1, 24000]), duration: 1.000s
-Received chunk 5, shape: torch.Size([1, 24000]), duration: 1.000s
-Received chunk 6, shape: torch.Size([1, 20160]), duration: 0.840s
-Total generation time: 2.915s
-Total audio duration: 5.840s
-RTF (Real-Time Factor): 0.499 (target < 1)
-Total chunks yielded: 6
+- Latency to first chunk: 0.472s
+- Received chunk 1, shape: torch.Size([1, 24000]), duration: 1.000s
+- Audio playback started!
+- Received chunk 2, shape: torch.Size([1, 24000]), duration: 1.000s
+- Received chunk 3, shape: torch.Size([1, 24000]), duration: 1.000s
+- Received chunk 4, shape: torch.Size([1, 24000]), duration: 1.000s
+- Received chunk 5, shape: torch.Size([1, 24000]), duration: 1.000s
+- Received chunk 6, shape: torch.Size([1, 20160]), duration: 0.840s
+- Total generation time: 2.915s
+- Total audio duration: 5.840s
+- RTF (Real-Time Factor): 0.499 (target < 1)
+- Total chunks yielded: 6
 
 # Acknowledgements
 - [Cosyvoice](https://github.com/FunAudioLLM/CosyVoice)
