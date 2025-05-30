@@ -23,7 +23,7 @@ Whether you're working on memes, videos, games, or AI agents, Chatterbox brings 
 
 # Installation
 ```
-git clone https://github.com/davidbrowne17/chatterbox.git
+git clone https://github.com/davidbrowne17/chatterbox-streaming.git
 pip install -e .
 ```
 
