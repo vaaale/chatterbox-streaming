@@ -23,6 +23,8 @@ Whether you're working on memes, videos, games, or AI agents, Chatterbox brings 
 
 # Installation
 ```
+python3.10 -m venv .venv
+source .venv/bin/activate
 pip install chatterbox-streaming
 ```
 
