@@ -105,7 +105,7 @@ ta.save("streaming_voice_clone.wav", final_audio, model.sr)
 - `cfg_weight`: Classifier-free guidance weight (0.0-1.0)
 - `temperature`: Sampling randomness (0.1-1.0)
 
-See `example_tts.py` for more examples.
+See `example_tts_stream.py` for more examples.
 
 ## Example metrics
 Here are the example metrics for streaming latency on a 4090
