@@ -115,7 +115,7 @@ ta.save("streaming_voice_clone.wav", final_audio, model.sr)
 See `example_tts_stream.py` for more examples.
 
 ## Example metrics
-Here are the example metrics for streaming latency on a 4090
+Here are the example metrics for streaming latency on a 4090 using Linux
 - Latency to first chunk: 0.472s
 - Received chunk 1, shape: torch.Size([1, 24000]), duration: 1.000s
 - Audio playback started!
