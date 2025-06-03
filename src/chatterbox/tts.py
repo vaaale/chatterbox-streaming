@@ -466,6 +466,11 @@ class ChatterboxTTS:
         first_chunk_yielded = False
         total_audio_length = 0.0
         accumulated_tokens = []
+        
+        # Use context window and batch processing
+        context_window = 10  # small context
+        batch_size = 3 
+        token_buffer = []
 
         with torch.inference_mode():
             # Stream speech tokens
@@ -479,41 +484,61 @@ class ChatterboxTTS:
             ):
                 # Extract only the conditional batch
                 token_chunk = token_chunk[0]
+                token_buffer.append(token_chunk)
                 accumulated_tokens.append(token_chunk)
                 
-                # Convert tokens to audio
-                all_tokens = torch.cat(accumulated_tokens, dim=-1)
-                clean_tokens = drop_invalid_tokens(all_tokens)
-                clean_tokens = clean_tokens.to(self.device)
-
-                if len(clean_tokens) > 0:
-                    wav, _ = self.s3gen.inference(
-                        speech_tokens=clean_tokens,
-                        ref_dict=self.conds.gen,
-                    )
-                    wav = wav.squeeze(0).detach().cpu().numpy()
+                # Process when we have enough chunks buffered
+                if len(token_buffer) >= batch_size or len(token_buffer) == len(accumulated_tokens):
+                    # Combine buffered chunks
+                    new_tokens = torch.cat(token_buffer, dim=-1)
                     
-                    # Calculate audio chunk (new audio only)
-                    new_audio_start = int(total_audio_length * self.sr)
-                    if new_audio_start < len(wav):
-                        audio_chunk = wav[new_audio_start:]
-                        audio_duration = len(audio_chunk) / self.sr
-                        total_audio_length += audio_duration
+                    # Add minimal context from previous batch
+                    if len(accumulated_tokens) > len(token_buffer):
+                        # Get last few tokens from previous batch as context
+                        prev_tokens = accumulated_tokens[-(len(token_buffer)+1)]
+                        context = prev_tokens[-context_window:] if len(prev_tokens) > context_window else prev_tokens
+                        tokens_to_process = torch.cat([context, new_tokens], dim=-1)
+                        skip_ratio = len(context) / len(tokens_to_process)
+                    else:
+                        tokens_to_process = new_tokens
+                        skip_ratio = 0
+                    
+                    # Convert tokens to audio
+                    clean_tokens = drop_invalid_tokens(tokens_to_process)
+                    clean_tokens = clean_tokens.to(self.device)
+
+                    if len(clean_tokens) > 0:
+                        wav, _ = self.s3gen.inference(
+                            speech_tokens=clean_tokens,
+                            ref_dict=self.conds.gen,
+                        )
+                        wav = wav.squeeze(0).detach().cpu().numpy()
                         
-                        # Apply watermarking to chunk
-                        watermarked_chunk = self.watermarker.apply_watermark(audio_chunk, sample_rate=self.sr)
-                        audio_tensor = torch.from_numpy(watermarked_chunk).unsqueeze(0)
+                        # Skip the context portion
+                        skip_samples = int(len(wav) * skip_ratio)
+                        audio_chunk = wav[skip_samples:]
                         
-                        # Update metrics
-                        if not first_chunk_yielded:
-                            metrics.latency_to_first_chunk = time.time() - start_time
-                            first_chunk_yielded = True
-                            if print_metrics:
-                                print(f"Latency to first chunk: {metrics.latency_to_first_chunk:.3f}s")
-                        
-                        metrics.chunk_count += 1
-                        
-                        yield audio_tensor, metrics
+                        if len(audio_chunk) > 0:
+                            audio_duration = len(audio_chunk) / self.sr
+                            total_audio_length += audio_duration
+                            
+                            # Apply watermarking to chunk
+                            watermarked_chunk = self.watermarker.apply_watermark(audio_chunk, sample_rate=self.sr)
+                            audio_tensor = torch.from_numpy(watermarked_chunk).unsqueeze(0)
+                            
+                            # Update metrics
+                            if not first_chunk_yielded:
+                                metrics.latency_to_first_chunk = time.time() - start_time
+                                first_chunk_yielded = True
+                                if print_metrics:
+                                    print(f"Latency to first chunk: {metrics.latency_to_first_chunk:.3f}s")
+                            
+                            metrics.chunk_count += 1
+                            
+                            yield audio_tensor, metrics
+                    
+                    # Clear buffer
+                    token_buffer = []
 
         # Final metrics calculation
         metrics.total_generation_time = time.time() - start_time
