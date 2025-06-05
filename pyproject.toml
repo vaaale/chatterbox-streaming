@@ -1,6 +1,6 @@
 [project]
 name = "chatterbox-streaming"
-version = "0.1.1"
+version = "0.1.2"
 description = "Chatterbox Streaming: Open Source TTS and Voice Conversion"
 readme = "README.md"
 requires-python = ">=3.8"
