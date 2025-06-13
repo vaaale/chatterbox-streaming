@@ -114,6 +114,9 @@ ta.save("streaming_voice_clone.wav", final_audio, model.sr)
 
 See `example_tts_stream.py` for more examples.
 
+## Finetuning
+To finetune Chatterbox all you need are some wav audio files with the speaker voice you want to train, just the raw wavs. Place them in a folder called audio_data and run lora.py. You can configure the exact training params such as batch size, number of epochs and learning rate by modifying the values at the top of lora.py. You will need a CUDA gpu with at least 18gb of vram depending on your dataset size and training params. You can monitor the training metrics via the dynamic png created called training_metrics. This contains various graphs to help you track the training progress. If you want to try a checkpoint you can use the loadandmergecheckpoint.py (make sure to set the same R and Alpha values as you used in the training)
+
 ## Example metrics
 Here are the example metrics for streaming latency on a 4090 using Linux
 - Latency to first chunk: 0.472s
