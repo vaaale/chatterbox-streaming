@@ -21,6 +21,7 @@ dependencies = [
     "omegaconf==2.3.0",
     "conformer==0.3.2",
     "matplotlib",
+    "whisper-openai",
     "sounddevice==0.5.2"
 ]
 
