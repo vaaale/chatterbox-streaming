@@ -4,6 +4,7 @@ import librosa
 import torch
 import perth
 from huggingface_hub import hf_hub_download
+from safetensors.torch import load_file
 
 from .models.s3tokenizer import S3_SR
 from .models.s3gen import S3GEN_SR, S3Gen
@@ -51,7 +52,9 @@ class ChatterboxVC:
 
         s3gen = S3Gen()
         s3gen.load_state_dict(
-            torch.load(ckpt_dir / "s3gen.pt", map_location=map_location)
+            # torch.load(ckpt_dir / "s3gen.pt", map_location=map_location)
+            load_file(ckpt_dir / "s3gen.safetensors"),
+            strict=False
         )
         s3gen.to(device).eval()
 

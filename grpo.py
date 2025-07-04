@@ -24,6 +24,7 @@ import jiwer
 from scipy.spatial.distance import cosine
 import soundfile as sf
 import gc
+from safetensors.torch import save_file
 
 # Import Chatterbox components
 from chatterbox.tts import ChatterboxTTS, punc_norm
@@ -75,6 +76,16 @@ TOP_P = 0.95
 WER_WEIGHT = -1.0
 SPEAKER_SIM_WEIGHT = 1.0
 LENGTH_PENALTY_WEIGHT = -0.5
+
+LOCAL_MODEL = "/mnt/storage/Models/Chatterbox/checkpoints/chatterbox_finetuned_norwegian"
+# LOCAL_MODEL = None
+
+def load_model() -> ChatterboxTTS:
+    if LOCAL_MODEL is None:
+        model = ChatterboxTTS.from_pretrained(DEVICE)
+    else:
+        model = ChatterboxTTS.from_local(ckpt_dir=LOCAL_MODEL, device=DEVICE)
+    return model
 
 
 def safe_tensor_index(tensor: torch.Tensor, start: int, end: int, dim: int = 1) -> torch.Tensor:
@@ -1292,7 +1303,8 @@ def main():
         print(f"Train samples: {len(train_samples)}, Validation samples: {len(val_samples)}")
         
         print("Loading Chatterbox TTS model...")
-        model = ChatterboxTTS.from_pretrained(DEVICE)
+        # model = ChatterboxTTS.from_pretrained(DEVICE)
+        model = load_model()
         
         if hasattr(model.t3.tfmr, 'gradient_checkpointing_enable'):
             model.t3.tfmr.gradient_checkpointing_enable()
@@ -1524,8 +1536,9 @@ def main():
         save_lora_adapter(lora_layers, str(final_adapter_path))
         
         print("Creating merged model...")
-        merged_model = ChatterboxTTS.from_pretrained(DEVICE)
-        
+        # merged_model = ChatterboxTTS.from_pretrained(DEVICE)
+        merged_model = load_model()
+
         merged_lora_layers = inject_lora_layers(
             merged_model.t3.tfmr,
             target_modules,
@@ -1547,7 +1560,11 @@ def main():
         torch.save(merged_model.ve.state_dict(), merged_dir / "ve.pt")
         torch.save(merged_model.t3.state_dict(), merged_dir / "t3_cfg.pt")
         torch.save(merged_model.s3gen.state_dict(), merged_dir / "s3gen.pt")
-        
+
+        save_file(merged_model.ve.state_dict(), merged_dir / "ve.safetensors")
+        save_file(merged_model.t3.state_dict(), merged_dir / "t3_cfg.safetensors")
+        save_file(merged_model.s3gen.state_dict(), merged_dir / "s3gen.safetensors")
+
         import shutil
         tokenizer_path = Path(hf_hub_download(repo_id="ResembleAI/chatterbox", filename="tokenizer.json"))
         shutil.copy(tokenizer_path, merged_dir / "tokenizer.json")

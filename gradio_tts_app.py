@@ -7,6 +7,18 @@ from chatterbox.tts import ChatterboxTTS
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+# LOCAL_MODEL = None
+LOCAL_MODEL = "/mnt/storage/Models/Chatterbox/checkpoints/chatterbox_finetuned_norwegian"
+# LOCAL_MODEL = "/home/alex/PycharmProjects/chatterbox-streaming/checkpoints_no_lora_base_no-epochs_20_accum_80/merged_model"
+# LOCAL_MODEL = "/home/alex/PycharmProjects/chatterbox-streaming/checkpoints_grpo/merged_grpo_model"
+
+def load_model():
+    if LOCAL_MODEL is None:
+        model = ChatterboxTTS.from_pretrained(DEVICE)
+    else:
+        model = ChatterboxTTS.from_local(ckpt_dir=LOCAL_MODEL, device=DEVICE)
+    return model
+
 
 def set_seed(seed: int):
     torch.manual_seed(seed)
@@ -16,17 +28,18 @@ def set_seed(seed: int):
     np.random.seed(seed)
 
 
-def load_model():
-    model = ChatterboxTTS.from_pretrained(DEVICE)
-    return model
-
-
 def generate(model, text, audio_prompt_path, exaggeration, temperature, seed_num, cfgw):
     if model is None:
-        model = ChatterboxTTS.from_pretrained(DEVICE)
+        # model = ChatterboxTTS.from_pretrained(DEVICE)
+        print("Model still loading...")
+        return
 
     if seed_num != 0:
         set_seed(int(seed_num))
+    else:
+        seed_num = random.randint(1, 10000)
+        set_seed(seed_num)
+    print("Using seed:", seed_num)
 
     wav = model.generate(
         text,
@@ -37,13 +50,13 @@ def generate(model, text, audio_prompt_path, exaggeration, temperature, seed_num
     )
     return (model.sr, wav.squeeze(0).numpy())
 
-
+callback = gr.CSVLogger()
 with gr.Blocks() as demo:
     model_state = gr.State(None)  # Loaded once per session/user
 
     with gr.Row():
         with gr.Column():
-            text = gr.Textbox(value="What does the fox say?", label="Text to synthesize")
+            text = gr.Textbox(value="Dette er en test av Chatterbox TTS-modellen. Vi skal se hvordan den håndterer norsk tekst.", label="Text to synthesize")
             ref_wav = gr.Audio(sources=["upload", "microphone"], type="filepath", label="Reference Audio File", value=None)
             exaggeration = gr.Slider(0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5)
             cfg_weight = gr.Slider(0.2, 1, step=.05, label="CFG/Pace", value=0.5)
@@ -56,6 +69,8 @@ with gr.Blocks() as demo:
 
         with gr.Column():
             audio_output = gr.Audio(label="Output Audio")
+            flag_type = gr.Radio(["Good", "Bad"], label="Flag category", value="Bad")  # Placeholder for output type
+            flag_btn = gr.Button("Flag")
 
     demo.load(fn=load_model, inputs=[], outputs=model_state)
 
@@ -72,9 +87,13 @@ with gr.Blocks() as demo:
         ],
         outputs=audio_output,
     )
+    # This needs to be called at some point prior to the first call to callback.flag()
+    callback.setup([flag_type, text, ref_wav, exaggeration, cfg_weight, seed_num, temp, audio_output], "flagged_data_points")
+    # We can choose which components to flag -- in this case, we'll flag all of them
+    flag_btn.click(lambda *args: callback.flag(list(args)), [flag_type, text, ref_wav, exaggeration, cfg_weight, seed_num, temp, audio_output], None, preprocess=False)
 
 if __name__ == "__main__":
     demo.queue(
         max_size=50,
         default_concurrency_limit=1,
-    ).launch(share=True)
+    ).launch(share=False)

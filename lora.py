@@ -5,6 +5,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 import warnings
+
 warnings.filterwarnings('ignore')
 
 from transformers import pipeline
@@ -18,6 +19,7 @@ import librosa
 import numpy as np
 from tqdm import tqdm
 from huggingface_hub import hf_hub_download
+from safetensors.torch import save_file
 
 # Import Chatterbox components
 from chatterbox.tts import ChatterboxTTS, punc_norm
@@ -41,7 +43,7 @@ from collections import deque
 # Hardcoded configuration
 AUDIO_DATA_DIR = "./audio_data"
 BATCH_SIZE = 1
-EPOCHS = 10
+EPOCHS = 20
 LEARNING_RATE = 2e-5  
 WARMUP_STEPS = 500 
 MAX_AUDIO_LENGTH = 400.0  
@@ -49,13 +51,23 @@ MIN_AUDIO_LENGTH = 1.0
 LORA_RANK = 32  
 LORA_ALPHA = 64  
 LORA_DROPOUT = 0.05  
-GRADIENT_ACCUMULATION_STEPS = 8
+GRADIENT_ACCUMULATION_STEPS = 80
 SAVE_EVERY_N_STEPS = 200
 CHECKPOINT_DIR = "checkpoints_lora"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 WHISPER_MODEL = "openai/whisper-large-v3-turbo"
 MAX_TEXT_LENGTH = 1000
 VALIDATION_SPLIT = 0.1
+
+LOCAL_MODEL = "/mnt/storage/Models/Chatterbox/checkpoints/chatterbox_finetuned_norwegian"
+
+def load_model() -> ChatterboxTTS:
+    if LOCAL_MODEL is None:
+        model = ChatterboxTTS.from_pretrained(DEVICE)
+    else:
+        model = ChatterboxTTS.from_local(ckpt_dir=LOCAL_MODEL, device=DEVICE)
+    return model
+
 
 # Metrics tracking class
 class MetricsTracker:
@@ -548,10 +560,11 @@ def compute_loss(
     # Pad text tokens to same length
     max_text_len = max(t.size(-1) for t in text_tokens_list)
     text_tokens_padded = []
+    pad_token_id = getattr(model.tokenizer, 'pad_token_id', 0)
     for t in text_tokens_list:
         pad_amount = max_text_len - t.size(-1)
         if pad_amount > 0:
-            padded = F.pad(t, (0, pad_amount), value=model.tokenizer.pad_token_id or 0)
+            padded = F.pad(t, (0, pad_amount), value=pad_token_id)
         else:
             padded = t
         text_tokens_padded.append(padded)
@@ -710,7 +723,6 @@ def compute_loss(
     
     return loss
 
-
 def main():
     """Main training function"""
     print(f"Starting Chatterbox TTS LoRA fine-tuning")
@@ -738,7 +750,8 @@ def main():
     whisper_model.model.cpu()
     # Load Chatterbox model
     print("Loading Chatterbox TTS model...")
-    model = ChatterboxTTS.from_pretrained(DEVICE)
+    # model = ChatterboxTTS.from_pretrained(DEVICE)
+    model = load_model()
     # Restart training
     #model = ChatterboxTTS.from_local("./checkpoints_lora/merged_model", DEVICE)
 
@@ -914,8 +927,9 @@ def main():
     print("Creating merged model...")
     
     # Clone the model state for merging
-    merged_model = ChatterboxTTS.from_pretrained(DEVICE)
-    
+    # merged_model = ChatterboxTTS.from_pretrained(DEVICE)
+    merged_model = load_model()
+
     # Re-inject LoRA layers and load final weights
     merged_lora_layers = inject_lora_layers(
         merged_model.t3.tfmr,
@@ -942,7 +956,11 @@ def main():
     torch.save(merged_model.ve.state_dict(), merged_dir / "ve.pt")
     torch.save(merged_model.t3.state_dict(), merged_dir / "t3_cfg.pt")
     torch.save(merged_model.s3gen.state_dict(), merged_dir / "s3gen.pt")
-    
+
+    save_file(merged_model.ve.state_dict(), merged_dir / "ve.safetensors")
+    save_file(merged_model.t3.state_dict(), merged_dir / "t3_cfg.safetensors")
+    save_file(merged_model.s3gen.state_dict(), merged_dir / "s3gen.safetensors")
+
     # Copy tokenizer
     import shutil
     tokenizer_path = Path(hf_hub_download(repo_id="ResembleAI/chatterbox", filename="tokenizer.json"))
